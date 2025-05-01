@@ -12,11 +12,12 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = "gpt-4o"; // Используем модель GPT-4o
 const DELAY_BETWEEN_REQUESTS_MS = 5000; // 5 секунд задержки между запросами к API
 
-// Директория, где лежат оригинальные MP3 и созданные TXT файлы
-// Используем ту же логику, что и в transcribe.js для определения директории
-// Важно: Убедитесь, что эта директория соответствует действительности
-const baseDirectory =
-  "/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/";
+// --- Список файлов для обработки ---
+// Укажите здесь полные пути к файлам .txt, которые нужно обработать
+const filesToProcess = [
+  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#0.txt`,
+  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#6.txt`,
+];
 
 // --- Вспомогательные функции ---
 
@@ -25,32 +26,6 @@ const baseDirectory =
  * @param {number} ms - Время задержки в миллисекундах.
  */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Находит все .txt файлы в указанной директории.
- * @param {string} dirPath - Путь к директории.
- * @returns {Promise<string[]>} - Массив путей к .txt файлам.
- */
-async function findTxtFiles(dirPath) {
-  try {
-    const allFiles = await fs.readdir(dirPath);
-    const txtFiles = allFiles
-      .filter(
-        (file) =>
-          path.extname(file).toLowerCase() === ".txt" &&
-          !file.endsWith("_roles.txt") &&
-          !file.startsWith(".") // Исключаем системные файлы типа .DS_Store
-      ) // Ищем .txt, исключаем уже обработанные
-      .map((file) => path.join(dirPath, file));
-    return txtFiles;
-  } catch (error) {
-    console.error(
-      `❌ Ошибка при поиске .txt файлов в директории ${dirPath}:`,
-      error
-    );
-    return []; // Возвращаем пустой массив в случае ошибки
-  }
-}
 
 /**
  * Отправляет один чанк текста в OpenAI для обработки.
@@ -152,6 +127,18 @@ async function processTranscriptFile(filePath, index, totalFiles) {
   );
 
   try {
+    // Проверка существования файла перед обработкой
+    try {
+      await fs.access(filePath);
+    } catch {
+      console.error(
+        `[${
+          index + 1
+        }/${totalFiles}] ❌ Файл не найден (проверьте путь): ${filePath}`
+      );
+      return; // Пропускаем этот файл
+    }
+
     // 1. Прочитать содержимое файла
     const transcriptText = await fs.readFile(filePath, "utf8");
     if (!transcriptText.trim()) {
@@ -297,36 +284,19 @@ async function main() {
     return;
   }
 
-  let directoryExists = false;
-  try {
-    const stats = await fs.stat(baseDirectory);
-    directoryExists = stats.isDirectory();
-  } catch (err) {
-    // Ошибка, скорее всего директории не существует
-    directoryExists = false;
-  }
-
-  if (!baseDirectory || !directoryExists) {
-    console.error(
-      `❌ ОШИБКА: Директория с транскрипциями (${baseDirectory}) не найдена или не является директорией.`
-    );
-    return;
-  }
-
-  const transcriptFiles = await findTxtFiles(baseDirectory);
-
-  if (transcriptFiles.length === 0) {
+  // Используем предопределенный массив filesToProcess
+  if (!filesToProcess || filesToProcess.length === 0) {
     console.log(
-      "🟡 Не найдено .txt файлов для обработки в указанной директории."
+      "🟡 Список файлов для обработки (filesToProcess) пуст. Добавьте пути к .txt файлам в скрипт."
     );
     return;
   }
 
-  console.log(`Обнаружено файлов для обработки: ${transcriptFiles.length}`);
+  console.log(`Обнаружено файлов для обработки: ${filesToProcess.length}`);
 
-  const totalFiles = transcriptFiles.length;
+  const totalFiles = filesToProcess.length;
   for (let i = 0; i < totalFiles; i++) {
-    await processTranscriptFile(transcriptFiles[i], i, totalFiles);
+    await processTranscriptFile(filesToProcess[i], i, totalFiles);
     // Добавим задержку и между файлами на всякий случай
     if (i < totalFiles - 1) {
       console.log(`---`);
