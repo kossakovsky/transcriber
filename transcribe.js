@@ -28,8 +28,7 @@ const TARGET_CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024;
 // Список файлов для транскрибации
 // Генерируем пути к 5 файлам MP3
 const filesToTranscribe = [
-  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#0.mp3`,
-  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#6.mp3`,
+  "/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/flowise/Automatica fw lessons/Automatica_#1.mp3",
 ];
 
 // --- Функции ---

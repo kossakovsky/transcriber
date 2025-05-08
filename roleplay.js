@@ -15,8 +15,7 @@ const DELAY_BETWEEN_REQUESTS_MS = 5000; // 5 секунд задержки ме�
 // --- Список файлов для обработки ---
 // Укажите здесь полные пути к файлам .txt, которые нужно обработать
 const filesToProcess = [
-  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#0.txt`,
-  `/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/n8n/Automatica n8n lessons/Automatica_#6.txt`,
+  "/Users/kossakovsky/Library/CloudStorage/GoogleDrive-kossakovsky93@gmail.com/My Drive/Automatica n8n/flowise/Automatica fw lessons/Automatica_#1.txt",
 ];
 
 // --- Вспомогательные функции ---
