@@ -5,6 +5,7 @@ import FormData from "form-data";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
+import readline from "readline";
 
 // Tell fluent-ffmpeg where to find the ffmpeg and ffprobe binaries
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -156,6 +157,32 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
   }
 }
 
+
+/**
+ * Ask user for confirmation to continue.
+ * @param {string} question - Question to ask the user.
+ * @returns {Promise<boolean>} - Promise that resolves to true if user confirms.
+ */
+function askForConfirmation(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    rl.question(question, (answer) => {
+      rl.close();
+      const normalizedAnswer = answer.toLowerCase().trim();
+      resolve(
+        normalizedAnswer === "y" ||
+        normalizedAnswer === "yes" ||
+        normalizedAnswer === "д" ||
+        normalizedAnswer === "да" ||
+        normalizedAnswer === ""
+      );
+    });
+  });
+}
 
 /**
  * Transcribe one audio file using ElevenLabs Scribe API.
@@ -320,6 +347,21 @@ async function main() {
   for (let i = 0; i < totalFiles; i++) {
     await processVideoFile(videoFiles[i], i, totalFiles);
     console.log(`---`);
+
+    // Ask for confirmation before processing next file (except after the last file)
+    if (i < totalFiles - 1) {
+      const nextFile = path.basename(videoFiles[i + 1]);
+      const shouldContinue = await askForConfirmation(
+        `\n❓ Продолжить обработку следующего файла "${nextFile}"? (y/n или Enter для продолжения): `
+      );
+
+      if (!shouldContinue) {
+        console.log(`\n⏸️  Обработка остановлена пользователем.`);
+        console.log(`📊 Обработано файлов: ${i + 1} из ${totalFiles}`);
+        return;
+      }
+      console.log(); // Empty line for better readability
+    }
   }
 
   console.log(`🏁 Все файлы обработаны.`);
