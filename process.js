@@ -5,7 +5,7 @@ import FormData from "form-data";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
-import readline from "readline";
+import inquirer from "inquirer";
 
 // Tell fluent-ffmpeg where to find the ffmpeg and ffprobe binaries
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -159,29 +159,36 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
 
 
 /**
- * Ask user for confirmation to continue.
- * @param {string} question - Question to ask the user.
- * @returns {Promise<boolean>} - Promise that resolves to true if user confirms.
+ * Show interactive menu for file processing options.
+ * @param {string} fileName - Name of the file to be processed.
+ * @param {number} currentIndex - Current file index (1-based).
+ * @param {number} totalFiles - Total number of files.
+ * @returns {Promise<string>} - Promise that resolves to user choice: 'continue', 'skip', or 'exit'.
  */
-function askForConfirmation(question) {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+async function showFileMenu(fileName, currentIndex, totalFiles) {
+  const answer = await inquirer.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: `\n📂 Файл ${currentIndex}/${totalFiles}: "${fileName}"`,
+      choices: [
+        {
+          name: "✅ Продолжить обработку",
+          value: "continue",
+        },
+        {
+          name: "⏭️  Пропустить этот файл",
+          value: "skip",
+        },
+        {
+          name: "🚪 Выход из программы",
+          value: "exit",
+        },
+      ],
+    },
+  ]);
 
-    rl.question(question, (answer) => {
-      rl.close();
-      const normalizedAnswer = answer.toLowerCase().trim();
-      resolve(
-        normalizedAnswer === "y" ||
-        normalizedAnswer === "yes" ||
-        normalizedAnswer === "д" ||
-        normalizedAnswer === "да" ||
-        normalizedAnswer === ""
-      );
-    });
-  });
+  return answer.action;
 }
 
 /**
@@ -283,11 +290,13 @@ async function processVideoFile(videoPath, index, totalFiles) {
     if (!fs.existsSync(audioPath)) {
       await extractAudio(videoPath, audioPath);
     } else {
+      const audioStats = fs.statSync(audioPath);
+      const audioSizeMB = (audioStats.size / 1024 / 1024).toFixed(2);
       console.log(
-        `[${index + 1
-        }/${totalFiles}] 📁 Аудио файл уже существует: ${path.basename(
-          audioPath
-        )}`
+        `[${index + 1}/${totalFiles}] ✅ Аудио файл уже существует: ${path.basename(audioPath)} (${audioSizeMB} MB)`
+      );
+      console.log(
+        `[${index + 1}/${totalFiles}] ⏩ Пропускаем шаг извлечения аудио`
       );
     }
 
@@ -344,27 +353,40 @@ async function main() {
 
   // Process each video file
   const totalFiles = videoFiles.length;
+  let processedCount = 0;
+  let skippedCount = 0;
+
   for (let i = 0; i < totalFiles; i++) {
-    await processVideoFile(videoFiles[i], i, totalFiles);
-    console.log(`---`);
+    const videoFile = videoFiles[i];
+    const videoBasename = path.basename(videoFile);
 
-    // Ask for confirmation before processing next file (except after the last file)
-    if (i < totalFiles - 1) {
-      const nextFile = path.basename(videoFiles[i + 1]);
-      const shouldContinue = await askForConfirmation(
-        `\n❓ Продолжить обработку следующего файла "${nextFile}"? (y/n или Enter для продолжения): `
-      );
+    // Show menu before processing each file
+    const userChoice = await showFileMenu(videoBasename, i + 1, totalFiles);
 
-      if (!shouldContinue) {
-        console.log(`\n⏸️  Обработка остановлена пользователем.`);
-        console.log(`📊 Обработано файлов: ${i + 1} из ${totalFiles}`);
-        return;
-      }
-      console.log(); // Empty line for better readability
+    if (userChoice === "exit") {
+      console.log(`\n🚪 Выход из программы по запросу пользователя.`);
+      console.log(`📊 Обработано файлов: ${processedCount} из ${totalFiles}`);
+      console.log(`⏭️  Пропущено файлов: ${skippedCount}`);
+      return;
     }
+
+    if (userChoice === "skip") {
+      console.log(`⏭️  Пропускаем файл: ${videoBasename}\n`);
+      skippedCount++;
+      continue;
+    }
+
+    // Process file if user chose "continue"
+    await processVideoFile(videoFile, i, totalFiles);
+    processedCount++;
+    console.log(`---`);
   }
 
-  console.log(`🏁 Все файлы обработаны.`);
+  console.log(`\n🏁 Все файлы обработаны.`);
+  console.log(`📊 Обработано файлов: ${processedCount} из ${totalFiles}`);
+  if (skippedCount > 0) {
+    console.log(`⏭️  Пропущено файлов: ${skippedCount}`);
+  }
 }
 
 // Run main function
