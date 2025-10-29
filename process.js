@@ -19,9 +19,8 @@ dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_API_LIMIT_MB = 25; // OpenAI API limit in MB
-const CHUNK_SIZE_MB = 20; // Target chunk size in MB (slightly less than the limit)
 const MAX_FILE_SIZE = OPENAI_API_LIMIT_MB * 1024 * 1024;
-const TARGET_CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024;
+const TARGET_CHUNK_SIZE_BYTES = OPENAI_API_LIMIT_MB * 1024 * 1024;
 
 // Folder paths
 const VIDEO_DIR = "./video";
@@ -260,8 +259,7 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
         path.join(os.tmpdir(), `whisper-chunks-${Date.now()}-`)
       );
       console.log(
-        `[${
-          index + 1
+        `[${index + 1
         }/${totalFiles}] 📁 Создана временная директория: ${tempDir}`
       );
 
@@ -280,8 +278,7 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
       const transcriptParts = [];
       for (let i = 0; i < chunkPaths.length; i++) {
         console.log(
-          `[${index + 1}/${totalFiles}] 🎤 Обработка чанка ${i + 1} из ${
-            chunkPaths.length
+          `[${index + 1}/${totalFiles}] 🎤 Обработка чанка ${i + 1} из ${chunkPaths.length
           }...`
         );
         const chunkPath = chunkPaths[i];
@@ -290,8 +287,7 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
           transcriptParts.push(part);
         } catch (chunkError) {
           console.error(
-            `[${index + 1}/${totalFiles}] ❌ Ошибка при обработке чанка ${
-              i + 1
+            `[${index + 1}/${totalFiles}] ❌ Ошибка при обработке чанка ${i + 1
             }: ${chunkError.message}`
           );
           transcriptParts.push(`[ОШИБКА ОБРАБОТКИ ЧАНКА ${i + 1}]`);
@@ -300,36 +296,31 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
 
       transcript = transcriptParts.join("\n\n");
       console.log(
-        `[${
-          index + 1
+        `[${index + 1
         }/${totalFiles}] ✅ Все части файла ${baseFilename} транскрибированы и объединены.`
       );
     } else {
       console.log(
-        `[${
-          index + 1
+        `[${index + 1
         }/${totalFiles}] 👌 Файл в пределах лимита, отправка целиком...`
       );
       transcript = await transcribeChunk(filePath, OPENAI_API_KEY);
       console.log(
-        `[${
-          index + 1
+        `[${index + 1
         }/${totalFiles}] ✅ Файл ${baseFilename} успешно транскрибирован.`
       );
     }
 
     fs.writeFileSync(outputPath, transcript, "utf8");
     console.log(
-      `[${
-        index + 1
+      `[${index + 1
       }/${totalFiles}] 💾 Транскрипция сохранена в: ${path.basename(
         outputPath
       )}`
     );
   } catch (error) {
     console.error(
-      `[${
-        index + 1
+      `[${index + 1
       }/${totalFiles}] ❌ Ошибка при обработке файла ${baseFilename}:`
     );
     if (error.response) {
@@ -347,18 +338,15 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
     if (tempDir) {
       try {
         console.log(
-          `[${
-            index + 1
+          `[${index + 1
           }/${totalFiles}] 🧹 Очистка временных файлов из ${tempDir}...`
         );
         fs.rmSync(tempDir, { recursive: true, force: true });
         console.log(`[${index + 1}/${totalFiles}] ✨ Временные файлы удалены.`);
       } catch (cleanupError) {
         console.error(
-          `[${
-            index + 1
-          }/${totalFiles}] ⚠️ Не удалось удалить временную директорию ${tempDir}: ${
-            cleanupError.message
+          `[${index + 1
+          }/${totalFiles}] ⚠️ Не удалось удалить временную директорию ${tempDir}: ${cleanupError.message
           }`
         );
       }
@@ -387,8 +375,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
   // Check if already processed
   if (fs.existsSync(textPath)) {
     console.log(
-      `[${
-        index + 1
+      `[${index + 1
       }/${totalFiles}] ⏭️  Файл уже обработан, пропуск: ${videoBasename}`
     );
     return;
@@ -400,8 +387,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
       await extractAudio(videoPath, audioPath);
     } else {
       console.log(
-        `[${
-          index + 1
+        `[${index + 1
         }/${totalFiles}] 📁 Аудио файл уже существует: ${path.basename(
           audioPath
         )}`
@@ -416,8 +402,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
     );
   } catch (error) {
     console.error(
-      `[${
-        index + 1
+      `[${index + 1
       }/${totalFiles}] ❌ Критическая ошибка при обработке видео ${videoBasename}:`
     );
     console.error(`   - ${error.message}`);
