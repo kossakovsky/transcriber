@@ -4,18 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Node.js project for automated video transcription using OpenAI's Whisper API. The project processes videos through a three-stage pipeline:
+This is a Node.js project for automated video transcription using ElevenLabs Scribe API. The project processes videos through a three-stage pipeline:
 
 1. **Video** → Extract audio from video files
-2. **Audio** → Transcribe audio using OpenAI Whisper API
+2. **Audio** → Transcribe audio using ElevenLabs Scribe API
 3. **Text** → Save transcription results
 
 ## Environment Setup
 
 **Required**: Create a `.env` file with:
 ```
-OPENAI_API_KEY=your_api_key_here
+ELEVENLABS_API_KEY=your_api_key_here
 ```
+
+Get your API key from: https://elevenlabs.io/app/speech-to-text
 
 ## Running the Main Script
 
@@ -34,7 +36,7 @@ node process.js
 The project uses three main folders (all added to .gitignore):
 
 - **video/** - Place your video files here (.mp4, .mov)
-- **audio/** - Extracted audio files in WAV format (auto-generated)
+- **audio/** - Extracted audio files in MP3 format (auto-generated)
 - **text/** - Transcription results in .txt format (auto-generated)
 
 ## Architecture
@@ -43,24 +45,25 @@ The project uses three main folders (all added to .gitignore):
 
 **Workflow**:
 1. Scans `video/` folder for .mp4 and .mov files
-2. Extracts audio from each video → saves as WAV in `audio/`
+2. Extracts audio from each video → saves as MP3 in `audio/`
 3. Transcribes each audio file → saves transcript in `text/`
 4. Automatically skips already processed files (checks for existing .txt files)
 
 **Key Features**:
 - **Smart file handling**: Processes only new videos (skips if .txt already exists)
-- **Large file support**: Automatically splits audio files >25MB into chunks
-- **WAV format**: Extracts audio as uncompressed WAV for best transcription quality
-- **Chunk processing**: Each chunk transcribed separately, results concatenated
+- **Large file support**: Handles files up to 3GB and 10 hours duration
+- **MP3 format**: Extracts audio as compressed MP3 (much smaller than WAV)
+- **Speaker diarization**: Automatically identifies different speakers in the audio
 - **Robust error handling**: Continues processing remaining files if one fails
-- **Automatic cleanup**: Removes temporary chunk files after processing
-- **Russian language**: Transcription configured for Russian ("ru" at process.js:128)
+- **Russian language**: Transcription configured for Russian ("ru")
+- **High accuracy**: Uses ElevenLabs Scribe v1 model (best-in-class accuracy)
 
 **Configuration**:
-- Supported video formats: `.mp4`, `.mov` (line 24)
-- Audio format: WAV with pcm_s16le codec
-- Chunk size: 20MB target (OpenAI limit is 25MB)
-- API timeout: 10 minutes per chunk
+- Supported video formats: `.mp4`, `.mov` (line 30)
+- Audio format: MP3 with libmp3lame codec
+- File size limit: 3GB (ElevenLabs limit)
+- Duration limit: 10 hours (ElevenLabs limit)
+- API timeout: 20 minutes for large files
 
 ### Legacy Scripts
 
@@ -93,14 +96,21 @@ cat ./text/video.txt
 ## Language Settings
 
 To change transcription language from Russian:
-- Modify `language` parameter in process.js at line 128
-- Supported languages: https://platform.openai.com/docs/guides/speech-to-text
+- Modify `language_code` parameter in process.js at line 127
+- ElevenLabs Scribe supports 99 languages
+- Supported languages: https://elevenlabs.io/docs/capabilities/speech-to-text
 
 ## Error Handling
 
 The script implements comprehensive error handling:
 - Skips files that fail and continues with remaining files
-- Includes error markers in output for failed chunks
+- Validates file size (max 3GB) and duration (max 10 hours) before processing
 - Logs detailed error information (API status, network errors, etc.)
-- Cleans up temporary files even when errors occur
 - Won't re-process successfully completed files
+
+## API Pricing
+
+ElevenLabs Scribe pricing:
+- Starting from $0.40 per hour of transcribed audio
+- Lower rates available at scale with Enterprise plans
+- More info: https://elevenlabs.io/speech-to-text

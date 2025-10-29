@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
 import axios from "axios";
 import FormData from "form-data";
 import ffmpeg from "fluent-ffmpeg";
@@ -17,10 +16,11 @@ dotenv.config();
 
 // --- Configuration ---
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_API_LIMIT_MB = 25; // OpenAI API limit in MB
-const MAX_FILE_SIZE = OPENAI_API_LIMIT_MB * 1024 * 1024;
-const TARGET_CHUNK_SIZE_BYTES = OPENAI_API_LIMIT_MB * 1024 * 1024;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
+const ELEVENLABS_MODEL = "scribe_v1";
+const MAX_FILE_SIZE_GB = 3; // ElevenLabs limit: 3GB
+const MAX_DURATION_HOURS = 10; // ElevenLabs limit: 10 hours
 
 // Folder paths
 const VIDEO_DIR = "./video";
@@ -111,117 +111,54 @@ function getAudioMetadata(filePath) {
 }
 
 /**
- * Transcribe one small audio file (chunk).
- * @param {string} filePath - Path to audio file (or chunk).
- * @param {string} apiKey - OpenAI API key.
+ * Transcribe audio file using ElevenLabs Scribe API.
+ * @param {string} filePath - Path to audio file.
+ * @param {string} apiKey - ElevenLabs API key.
  * @returns {Promise<string>} - Promise with transcription text.
  */
-async function transcribeChunk(filePath, apiKey) {
-  const chunkFilename = path.basename(filePath);
-  console.log(`    ☁️ Отправка чанка ${chunkFilename} в OpenAI API...`);
+async function transcribeWithElevenLabs(filePath, apiKey) {
+  const filename = path.basename(filePath);
+  console.log(`    ☁️ Отправка файла ${filename} в ElevenLabs Scribe API...`);
+
   const formData = new FormData();
   formData.append("file", fs.createReadStream(filePath));
-  formData.append("model", "whisper-1");
-  formData.append("language", "ru");
+  formData.append("model_id", ELEVENLABS_MODEL);
+  formData.append("language_code", "ru");
+  formData.append("diarize", "true"); // Enable speaker diarization
 
   try {
     const response = await axios.post(
-      "https://api.openai.com/v1/audio/transcriptions",
+      ELEVENLABS_API_URL,
       formData,
       {
         headers: {
           ...formData.getHeaders(),
-          Authorization: `Bearer ${apiKey}`,
+          "xi-api-key": apiKey,
         },
-        timeout: 600000, // 10 minutes
+        timeout: 1200000, // 20 minutes for large files
       }
     );
-    console.log(`    ✅ Чанк ${chunkFilename} успешно транскрибирован.`);
+    console.log(`    ✅ Файл ${filename} успешно транскрибирован.`);
     return response.data.text;
   } catch (error) {
-    console.error(`    ❌ Ошибка при транскрибации чанка ${chunkFilename}:`);
+    console.error(`    ❌ Ошибка при транскрибации файла ${filename}:`);
     if (error.response) {
       console.error(`       - Статус API: ${error.response.status}`);
       console.error(
         `       - Ответ API: ${JSON.stringify(error.response.data)}`
       );
     } else if (error.request) {
-      console.error("       - Ошибка сети или нет ответа от сервера OpenAI.");
+      console.error("       - Ошибка сети или нет ответа от сервера ElevenLabs.");
     } else {
       console.error(`       - ${error.message}`);
     }
-    return `[ОШИБКА ТРАНСКРИБАЦИИ ЧАНКА: ${chunkFilename}]`;
+    throw error;
   }
 }
 
-/**
- * Split audio file into chunks by size.
- * @param {string} inputPath - Path to source file.
- * @param {string} outputDir - Directory to save chunks.
- * @param {number} duration - Total audio duration in seconds.
- * @param {number} fileSize - File size in bytes.
- * @param {number} targetChunkSizeBytes - Target chunk size in bytes.
- * @returns {Promise<string[]>} - Promise with list of chunk paths.
- */
-function splitAudioFile(
-  inputPath,
-  outputDir,
-  duration,
-  fileSize,
-  targetChunkSizeBytes
-) {
-  return new Promise((resolve, reject) => {
-    const numChunks = Math.ceil(fileSize / targetChunkSizeBytes);
-    const chunkDuration = Math.floor(duration / numChunks);
-    const outputPattern = path.join(
-      outputDir,
-      `chunk_%03d${path.extname(inputPath)}`
-    );
-    const chunkPaths = [];
-
-    console.log(
-      `    🕒 Разделение на ${numChunks} частей (примерно по ${chunkDuration} сек)...`
-    );
-
-    ffmpeg(inputPath)
-      .outputOptions([
-        "-f segment",
-        `-segment_time ${chunkDuration}`,
-        "-c copy",
-        "-reset_timestamps 1",
-      ])
-      .output(outputPattern)
-      .on("end", () => {
-        for (let i = 0; i < numChunks; i++) {
-          const chunkName = `chunk_${String(i).padStart(3, "0")}${path.extname(
-            inputPath
-          )}`;
-          const chunkPath = path.join(outputDir, chunkName);
-          if (fs.existsSync(chunkPath)) {
-            chunkPaths.push(chunkPath);
-          } else {
-            console.warn(`    ⚠️ Ожидаемый чанк не найден: ${chunkName}`);
-          }
-        }
-        if (chunkPaths.length === 0 && numChunks > 0) {
-          return reject(
-            new Error(`Не удалось создать ни одного чанка для ${inputPath}`)
-          );
-        }
-        console.log(`    ✅ Файл разделен на ${chunkPaths.length} частей.`);
-        resolve(chunkPaths);
-      })
-      .on("error", (err) => {
-        reject(
-          new Error(`Ошибка при разделении файла ${inputPath}: ${err.message}`)
-        );
-      })
-      .run();
-  });
-}
 
 /**
- * Transcribe one audio file using OpenAI API, handling large files.
+ * Transcribe one audio file using ElevenLabs Scribe API.
  * @param {string} filePath - Path to audio file.
  * @param {string} outputPath - Path to save transcription text.
  * @param {number} index - File index (for logging).
@@ -233,7 +170,6 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
     `[${index + 1}/${totalFiles}] 🎤 Транскрибация файла: ${baseFilename}`
   );
 
-  let tempDir = null;
   try {
     const { duration, size } = await getAudioMetadata(filePath);
     console.log(
@@ -244,72 +180,23 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
       )}s`
     );
 
-    let transcript = "";
+    // Check file size limits (ElevenLabs: 3GB, 10 hours)
+    const sizeGB = size / (1024 * 1024 * 1024);
+    const durationHours = duration / 3600;
 
-    if (size > MAX_FILE_SIZE) {
-      console.log(
-        `[${index + 1}/${totalFiles}] 🐘 Файл слишком большой (${(
-          size /
-          1024 /
-          1024
-        ).toFixed(2)} MB > ${OPENAI_API_LIMIT_MB} MB), требуется разделение.`
-      );
-
-      tempDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), `whisper-chunks-${Date.now()}-`)
-      );
-      console.log(
-        `[${index + 1
-        }/${totalFiles}] 📁 Создана временная директория: ${tempDir}`
-      );
-
-      const chunkPaths = await splitAudioFile(
-        filePath,
-        tempDir,
-        duration,
-        size,
-        TARGET_CHUNK_SIZE_BYTES
-      );
-
-      if (!chunkPaths || chunkPaths.length === 0) {
-        throw new Error("Не удалось разделить файл на части.");
-      }
-
-      const transcriptParts = [];
-      for (let i = 0; i < chunkPaths.length; i++) {
-        console.log(
-          `[${index + 1}/${totalFiles}] 🎤 Обработка чанка ${i + 1} из ${chunkPaths.length
-          }...`
-        );
-        const chunkPath = chunkPaths[i];
-        try {
-          const part = await transcribeChunk(chunkPath, OPENAI_API_KEY);
-          transcriptParts.push(part);
-        } catch (chunkError) {
-          console.error(
-            `[${index + 1}/${totalFiles}] ❌ Ошибка при обработке чанка ${i + 1
-            }: ${chunkError.message}`
-          );
-          transcriptParts.push(`[ОШИБКА ОБРАБОТКИ ЧАНКА ${i + 1}]`);
-        }
-      }
-
-      transcript = transcriptParts.join("\n\n");
-      console.log(
-        `[${index + 1
-        }/${totalFiles}] ✅ Все части файла ${baseFilename} транскрибированы и объединены.`
-      );
-    } else {
-      console.log(
-        `[${index + 1
-        }/${totalFiles}] 👌 Файл в пределах лимита, отправка целиком...`
-      );
-      transcript = await transcribeChunk(filePath, OPENAI_API_KEY);
-      console.log(
-        `[${index + 1
-        }/${totalFiles}] ✅ Файл ${baseFilename} успешно транскрибирован.`
+    if (sizeGB > MAX_FILE_SIZE_GB) {
+      throw new Error(
+        `Файл превышает лимит размера: ${sizeGB.toFixed(2)}GB > ${MAX_FILE_SIZE_GB}GB`
       );
     }
+
+    if (durationHours > MAX_DURATION_HOURS) {
+      throw new Error(
+        `Файл превышает лимит длительности: ${durationHours.toFixed(2)}h > ${MAX_DURATION_HOURS}h`
+      );
+    }
+
+    const transcript = await transcribeWithElevenLabs(filePath, ELEVENLABS_API_KEY);
 
     fs.writeFileSync(outputPath, transcript, "utf8");
     console.log(
@@ -327,28 +214,11 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
       console.error(`   - Статус API: ${error.response.status}`);
       console.error(`   - Ответ API: ${JSON.stringify(error.response.data)}`);
     } else if (error.request) {
-      console.error("   - Ошибка сети или нет ответа от сервера OpenAI.");
+      console.error("   - Ошибка сети или нет ответа от сервера ElevenLabs.");
     } else {
       console.error(`   - ${error.message}`);
       if (error.stack) {
         console.error(error.stack);
-      }
-    }
-  } finally {
-    if (tempDir) {
-      try {
-        console.log(
-          `[${index + 1
-          }/${totalFiles}] 🧹 Очистка временных файлов из ${tempDir}...`
-        );
-        fs.rmSync(tempDir, { recursive: true, force: true });
-        console.log(`[${index + 1}/${totalFiles}] ✨ Временные файлы удалены.`);
-      } catch (cleanupError) {
-        console.error(
-          `[${index + 1
-          }/${totalFiles}] ⚠️ Не удалось удалить временную директорию ${tempDir}: ${cleanupError.message
-          }`
-        );
       }
     }
   }
@@ -416,9 +286,9 @@ async function main() {
   console.log(`🚀 Запуск скрипта обработки видео...`);
 
   // Check API key
-  if (!OPENAI_API_KEY) {
+  if (!ELEVENLABS_API_KEY) {
     console.error(
-      "❌ ОШИБКА: API ключ OpenAI не найден. Убедитесь, что он задан в файле .env как OPENAI_API_KEY."
+      "❌ ОШИБКА: API ключ ElevenLabs не найден. Убедитесь, что он задан в файле .env как ELEVENLABS_API_KEY."
     );
     return;
   }
