@@ -19,9 +19,80 @@ dotenv.config();
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
-const ELEVENLABS_MODEL = "scribe_v1";
+
+// File size and duration limits
 const MAX_FILE_SIZE_GB = 3; // ElevenLabs limit: 3GB
 const MAX_DURATION_HOURS = 10; // ElevenLabs limit: 10 hours
+
+// ElevenLabs Scribe API Parameters
+// Все параметры с их дефолтными значениями для явного контроля
+const TRANSCRIPTION_CONFIG = {
+  // REQUIRED: Model ID for transcription
+  // Options: "scribe_v1" (stable), "scribe_v1_experimental" (newer features)
+  model_id: "scribe_v1",
+
+  // Language code (ISO-639-1 or ISO-639-3)
+  // If null/undefined, language is auto-detected
+  // Examples: "ru", "en", "es", "de", "fr", etc.
+  language_code: "ru",
+
+  // Speaker diarization - annotate who is speaking when
+  // Default: false
+  diarize: true,
+
+  // Maximum number of speakers (1-32)
+  // If null, uses model's maximum supported value
+  // Only affects results when diarize=true
+  num_speakers: null,
+
+  // Diarization threshold (float)
+  // Higher = less likely one speaker split into two, but more likely two speakers merged
+  // Only available when diarize=true and num_speakers=null
+  // If null, uses model default (typically 0.22)
+  diarization_threshold: null,
+
+  // Tag audio events like (laughter), (footsteps), etc.
+  // Default: true
+  tag_audio_events: true,
+
+  // Timestamp granularity in transcription
+  // Options: "none", "word", "character"
+  // Default: "word"
+  timestamps_granularity: "word",
+
+  // Temperature for output randomness (0.0 - 2.0)
+  // Higher = more diverse/less deterministic results
+  // If null, uses model default (typically 0)
+  temperature: null,
+
+  // Seed for deterministic sampling (0 - 2147483647)
+  // Same seed + params should return same result (not guaranteed)
+  // If null, non-deterministic
+  seed: null,
+
+  // Multi-channel audio support (max 5 channels)
+  // Each channel contains one speaker and is transcribed independently
+  // Default: false
+  use_multi_channel: false,
+
+  // Input audio format
+  // Options: "pcm_s16le_16" (16-bit PCM, 16kHz, mono, little-endian) or "other"
+  // Default: "other"
+  file_format: "other",
+
+  // Enable logging and history features
+  // Set to false for zero-retention mode (enterprise only)
+  // Default: true
+  enable_logging: true,
+
+  // Send results to configured webhooks instead of waiting for response
+  // Default: false
+  webhook: false,
+
+  // Specific webhook ID to send results to (only if webhook=true)
+  // If null, sends to all configured webhooks
+  webhook_id: null,
+};
 
 // Folder paths
 const VIDEO_DIR = "./video";
@@ -123,9 +194,44 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
 
   const formData = new FormData();
   formData.append("file", fs.createReadStream(filePath));
-  formData.append("model_id", ELEVENLABS_MODEL);
-  formData.append("language_code", "ru");
-  formData.append("diarize", "true"); // Enable speaker diarization
+
+  // Add all configuration parameters from TRANSCRIPTION_CONFIG
+  // Only add non-null values to the form data
+  formData.append("model_id", TRANSCRIPTION_CONFIG.model_id);
+
+  if (TRANSCRIPTION_CONFIG.language_code !== null) {
+    formData.append("language_code", TRANSCRIPTION_CONFIG.language_code);
+  }
+
+  formData.append("diarize", String(TRANSCRIPTION_CONFIG.diarize));
+
+  if (TRANSCRIPTION_CONFIG.num_speakers !== null) {
+    formData.append("num_speakers", String(TRANSCRIPTION_CONFIG.num_speakers));
+  }
+
+  if (TRANSCRIPTION_CONFIG.diarization_threshold !== null) {
+    formData.append("diarization_threshold", String(TRANSCRIPTION_CONFIG.diarization_threshold));
+  }
+
+  formData.append("tag_audio_events", String(TRANSCRIPTION_CONFIG.tag_audio_events));
+  formData.append("timestamps_granularity", TRANSCRIPTION_CONFIG.timestamps_granularity);
+
+  if (TRANSCRIPTION_CONFIG.temperature !== null) {
+    formData.append("temperature", String(TRANSCRIPTION_CONFIG.temperature));
+  }
+
+  if (TRANSCRIPTION_CONFIG.seed !== null) {
+    formData.append("seed", String(TRANSCRIPTION_CONFIG.seed));
+  }
+
+  formData.append("use_multi_channel", String(TRANSCRIPTION_CONFIG.use_multi_channel));
+  formData.append("file_format", TRANSCRIPTION_CONFIG.file_format);
+  formData.append("enable_logging", String(TRANSCRIPTION_CONFIG.enable_logging));
+  formData.append("webhook", String(TRANSCRIPTION_CONFIG.webhook));
+
+  if (TRANSCRIPTION_CONFIG.webhook_id !== null) {
+    formData.append("webhook_id", TRANSCRIPTION_CONFIG.webhook_id);
+  }
 
   try {
     const response = await axios.post(
