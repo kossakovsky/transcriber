@@ -1,6 +1,13 @@
 .env
 node_modules
 .DS_Store
-video/
-audio/
-text/
+
+# Keep folders, ignore contents
+audio/*
+!audio/.gitignore
+
+text/*
+!text/.gitignore
+
+video/*
+!video/.gitignore
