@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import FormData from "form-data";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -15,9 +15,66 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path);
 import dotenv from "dotenv";
 dotenv.config();
 
+// --- Type Definitions ---
+
+/**
+ * Command line arguments parsed from process.argv
+ */
+interface CliArgs {
+  lang?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * Audio metadata returned from ffprobe
+ */
+interface AudioMetadata {
+  duration: number; // Duration in seconds
+  size: number; // File size in bytes
+}
+
+/**
+ * ElevenLabs Scribe API transcription configuration
+ */
+interface TranscriptionConfig {
+  model_id: "scribe_v1" | "scribe_v1_experimental";
+  language_code: string | null;
+  diarize: boolean;
+  num_speakers: number | null;
+  diarization_threshold: number | null;
+  tag_audio_events: boolean;
+  timestamps_granularity: "none" | "word" | "character";
+  temperature: number | null;
+  seed: number | null;
+  use_multi_channel: boolean;
+  file_format: "pcm_s16le_16" | "other";
+  enable_logging: boolean;
+  webhook: boolean;
+  webhook_id: string | null;
+}
+
+/**
+ * Response from ElevenLabs Scribe API
+ */
+interface ElevenLabsResponse {
+  text: string;
+}
+
+/**
+ * User action choices from interactive menu
+ */
+type UserAction = "continue" | "skip" | "exit";
+
+/**
+ * Inquirer answer for file menu
+ */
+interface FileMenuAnswer {
+  action: UserAction;
+}
+
 // --- Configuration ---
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY: string | undefined = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
 // File size and duration limits
@@ -25,14 +82,16 @@ const MAX_FILE_SIZE_GB = 3; // ElevenLabs limit: 3GB
 const MAX_DURATION_HOURS = 10; // ElevenLabs limit: 10 hours
 
 // Parse command line arguments
-function parseArgs() {
+function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
-  const params = {};
+  const params: CliArgs = {};
 
-  args.forEach(arg => {
-    if (arg.startsWith('--')) {
-      const [key, value] = arg.slice(2).split('=');
-      params[key] = value;
+  args.forEach((arg) => {
+    if (arg.startsWith("--")) {
+      const [key, value] = arg.slice(2).split("=");
+      if (key) {
+        params[key] = value;
+      }
     }
   });
 
@@ -44,7 +103,7 @@ const LANGUAGE_CODE = CLI_ARGS.lang || "en"; // Default to English if not specif
 
 // ElevenLabs Scribe API Parameters
 // All parameters with their default values for explicit control
-const TRANSCRIPTION_CONFIG = {
+const TRANSCRIPTION_CONFIG: TranscriptionConfig = {
   // REQUIRED: Model ID for transcription
   // Options: "scribe_v1" (stable), "scribe_v1_experimental" (newer features)
   model_id: "scribe_v1",
@@ -119,7 +178,7 @@ const AUDIO_DIR = "./audio";
 const TEXT_DIR = "./text";
 
 // Supported video formats
-const VIDEO_EXTENSIONS = [".mp4", ".mov"];
+const VIDEO_EXTENSIONS = [".mp4", ".mov"] as const;
 
 // --- Helper Functions ---
 
@@ -127,7 +186,7 @@ const VIDEO_EXTENSIONS = [".mp4", ".mov"];
  * Get all video files from the video directory.
  * @returns {string[]} - Array of video file paths.
  */
-function getVideoFiles() {
+function getVideoFiles(): string[] {
   if (!fs.existsSync(VIDEO_DIR)) {
     console.error(`❌  Folder ${VIDEO_DIR} does not exist.`);
     return [];
@@ -137,7 +196,7 @@ function getVideoFiles() {
   const videoFiles = files
     .filter((file) => {
       const ext = path.extname(file).toLowerCase();
-      return VIDEO_EXTENSIONS.includes(ext);
+      return VIDEO_EXTENSIONS.includes(ext as typeof VIDEO_EXTENSIONS[number]);
     })
     .map((file) => path.join(VIDEO_DIR, file));
 
@@ -150,7 +209,7 @@ function getVideoFiles() {
  * @param {string} outputPath - Path for output audio file.
  * @returns {Promise<void>}
  */
-function extractAudio(videoPath, outputPath) {
+function extractAudio(videoPath: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     console.log(`    🎬  Extracting audio from ${path.basename(videoPath)}...`);
     ffmpeg(videoPath)
@@ -161,7 +220,7 @@ function extractAudio(videoPath, outputPath) {
         console.log(`    ✅  Audio extracted: ${path.basename(outputPath)}`);
         resolve();
       })
-      .on("error", (err) => {
+      .on("error", (err: Error) => {
         reject(
           new Error(
             `Error extracting audio from ${videoPath}: ${err.message}`
@@ -175,9 +234,9 @@ function extractAudio(videoPath, outputPath) {
 /**
  * Get audio file metadata (duration, size).
  * @param {string} filePath - Path to the file.
- * @returns {Promise<object>} - Promise with metadata { duration, size }.
+ * @returns {Promise<AudioMetadata>} - Promise with metadata { duration, size }.
  */
-function getAudioMetadata(filePath) {
+function getAudioMetadata(filePath: string): Promise<AudioMetadata> {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
       if (err) {
@@ -207,7 +266,10 @@ function getAudioMetadata(filePath) {
  * @param {string} apiKey - ElevenLabs API key.
  * @returns {Promise<string>} - Promise with transcription text.
  */
-async function transcribeWithElevenLabs(filePath, apiKey) {
+async function transcribeWithElevenLabs(
+  filePath: string,
+  apiKey: string
+): Promise<string> {
   const filename = path.basename(filePath);
   console.log(`    ☁️  Sending file ${filename} to ElevenLabs Scribe API...`);
 
@@ -229,7 +291,10 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
   }
 
   if (TRANSCRIPTION_CONFIG.diarization_threshold !== null) {
-    formData.append("diarization_threshold", String(TRANSCRIPTION_CONFIG.diarization_threshold));
+    formData.append(
+      "diarization_threshold",
+      String(TRANSCRIPTION_CONFIG.diarization_threshold)
+    );
   }
 
   formData.append("tag_audio_events", String(TRANSCRIPTION_CONFIG.tag_audio_events));
@@ -253,7 +318,7 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
   }
 
   try {
-    const response = await axios.post(
+    const response = await axios.post<ElevenLabsResponse>(
       ELEVENLABS_API_URL,
       formData,
       {
@@ -268,30 +333,39 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
     return response.data.text;
   } catch (error) {
     console.error(`    ❌  Error transcribing file ${filename}:`);
-    if (error.response) {
-      console.error(`        - API Status: ${error.response.status}`);
-      console.error(
-        `        - API Response: ${JSON.stringify(error.response.data)}`
-      );
-    } else if (error.request) {
-      console.error("        - Network error or no response from ElevenLabs server.");
-    } else {
+    if (error instanceof AxiosError) {
+      if (error.response) {
+        console.error(`        - API Status: ${error.response.status}`);
+        console.error(
+          `        - API Response: ${JSON.stringify(error.response.data)}`
+        );
+      } else if (error.request) {
+        console.error("        - Network error or no response from ElevenLabs server.");
+      } else {
+        console.error(`        - ${error.message}`);
+      }
+    } else if (error instanceof Error) {
       console.error(`        - ${error.message}`);
+    } else {
+      console.error(`        - Unknown error: ${String(error)}`);
     }
     throw error;
   }
 }
-
 
 /**
  * Show interactive menu for file processing options.
  * @param {string} fileName - Name of the file to be processed.
  * @param {number} currentIndex - Current file index (1-based).
  * @param {number} totalFiles - Total number of files.
- * @returns {Promise<string>} - Promise that resolves to user choice: 'continue', 'skip', or 'exit'.
+ * @returns {Promise<UserAction>} - Promise that resolves to user choice: 'continue', 'skip', or 'exit'.
  */
-async function showFileMenu(fileName, currentIndex, totalFiles) {
-  const answer = await inquirer.prompt([
+async function showFileMenu(
+  fileName: string,
+  currentIndex: number,
+  totalFiles: number
+): Promise<UserAction> {
+  const answer = await inquirer.prompt<FileMenuAnswer>([
     {
       type: "list",
       name: "action",
@@ -323,7 +397,12 @@ async function showFileMenu(fileName, currentIndex, totalFiles) {
  * @param {number} index - File index (for logging).
  * @param {number} totalFiles - Total number of files (for logging).
  */
-async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
+async function transcribeAudioFile(
+  filePath: string,
+  outputPath: string,
+  index: number,
+  totalFiles: number
+): Promise<void> {
   const baseFilename = path.basename(filePath);
   console.log(
     `[${index + 1}/${totalFiles}] 🎤  Transcribing file: ${baseFilename}`
@@ -355,30 +434,38 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
       );
     }
 
+    if (!ELEVENLABS_API_KEY) {
+      throw new Error("ElevenLabs API key is not defined");
+    }
+
     const transcript = await transcribeWithElevenLabs(filePath, ELEVENLABS_API_KEY);
 
     fs.writeFileSync(outputPath, transcript, "utf8");
     console.log(
-      `[${index + 1
-      }/${totalFiles}] 💾  Transcription saved to: ${path.basename(
+      `[${index + 1}/${totalFiles}] 💾  Transcription saved to: ${path.basename(
         outputPath
       )}`
     );
   } catch (error) {
     console.error(
-      `[${index + 1
-      }/${totalFiles}] ❌  Error processing file ${baseFilename}:`
+      `[${index + 1}/${totalFiles}] ❌  Error processing file ${baseFilename}:`
     );
-    if (error.response) {
-      console.error(`       - API Status: ${error.response.status}`);
-      console.error(`       - API Response: ${JSON.stringify(error.response.data)}`);
-    } else if (error.request) {
-      console.error("       - Network error or no response from ElevenLabs server.");
-    } else {
+    if (error instanceof AxiosError) {
+      if (error.response) {
+        console.error(`       - API Status: ${error.response.status}`);
+        console.error(`       - API Response: ${JSON.stringify(error.response.data)}`);
+      } else if (error.request) {
+        console.error("       - Network error or no response from ElevenLabs server.");
+      } else {
+        console.error(`       - ${error.message}`);
+      }
+    } else if (error instanceof Error) {
       console.error(`       - ${error.message}`);
       if (error.stack) {
         console.error(error.stack);
       }
+    } else {
+      console.error(`       - Unknown error: ${String(error)}`);
     }
   }
 }
@@ -389,7 +476,11 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
  * @param {number} index - File index (for logging).
  * @param {number} totalFiles - Total number of files (for logging).
  */
-async function processVideoFile(videoPath, index, totalFiles) {
+async function processVideoFile(
+  videoPath: string,
+  index: number,
+  totalFiles: number
+): Promise<void> {
   const videoBasename = path.basename(videoPath);
   const videoName = path.basename(videoPath, path.extname(videoPath));
 
@@ -404,8 +495,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
   // Check if already processed
   if (fs.existsSync(textPath)) {
     console.log(
-      `[${index + 1
-      }/${totalFiles}] ⏭️  File already processed, skipping: ${videoBasename}\n`
+      `[${index + 1}/${totalFiles}] ⏭️  File already processed, skipping: ${videoBasename}\n`
     );
     return;
   }
@@ -433,17 +523,20 @@ async function processVideoFile(videoPath, index, totalFiles) {
     );
   } catch (error) {
     console.error(
-      `[${index + 1
-      }/${totalFiles}] ❌  Critical error processing video ${videoBasename}:`
+      `[${index + 1}/${totalFiles}] ❌  Critical error processing video ${videoBasename}:`
     );
-    console.error(`   - ${error.message}\n`);
+    if (error instanceof Error) {
+      console.error(`   - ${error.message}\n`);
+    } else {
+      console.error(`   - Unknown error: ${String(error)}\n`);
+    }
   }
 }
 
 /**
  * Main function to process all videos.
  */
-async function main() {
+async function main(): Promise<void> {
   console.log(`\n🚀  Starting video processing script...\n`);
 
   // Display language setting
@@ -490,6 +583,9 @@ async function main() {
 
   for (let i = 0; i < totalFiles; i++) {
     const videoFile = videoFiles[i];
+    if (!videoFile) {
+      continue;
+    }
     const videoBasename = path.basename(videoFile);
 
     // Show menu before processing each file
@@ -524,7 +620,10 @@ async function main() {
 }
 
 // Run main function
-main().catch((err) => {
-  console.error("\n🚫  A critical error occurred in the main function:", err);
+main().catch((err: unknown) => {
+  if (err instanceof Error) {
+    console.error("\n🚫  A critical error occurred in the main function:", err);
+  } else {
+    console.error("\n🚫  A critical error occurred in the main function:", String(err));
+  }
 });
-
