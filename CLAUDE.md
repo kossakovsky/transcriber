@@ -25,10 +25,14 @@ Get your API key from: https://elevenlabs.io/app/speech-to-text
 # Install dependencies
 npm install
 
-# Run the interactive transcription pipeline
+# Run the interactive transcription pipeline (default: English)
 npm start
-# or
-node index.js
+
+# Run with a specific language
+npm start -- --lang=ru
+
+# Using node directly
+node index.js --lang=es
 ```
 
 ## Folder Structure
@@ -62,14 +66,14 @@ The project uses three main folders (all added to .gitignore):
 - **MP3 format**: Extracts audio as compressed MP3 using libmp3lame codec
 - **Speaker diarization**: Automatically identifies different speakers (configurable)
 - **Robust error handling**: Continues processing remaining files if one fails
-- **Russian language**: Default transcription language is Russian ("ru")
+- **English language**: Default transcription language is English ("en")
 - **High accuracy**: Uses ElevenLabs Scribe v1 model
 
 **ElevenLabs Scribe API Configuration** (lines 28-95):
 
 The `TRANSCRIPTION_CONFIG` object contains all configurable parameters:
 - `model_id`: "scribe_v1" (stable) or "scribe_v1_experimental"
-- `language_code`: "ru" (Russian) - set to null for auto-detection
+- `language_code`: "en" (English) - set to null for auto-detection
 - `diarize`: true - enables speaker identification
 - `num_speakers`: null - auto-detect number of speakers (1-32 if specified)
 - `diarization_threshold`: null - uses model default (typically 0.22)
@@ -83,15 +87,22 @@ The `TRANSCRIPTION_CONFIG` object contains all configurable parameters:
 - `webhook`: false - send results to webhook instead of waiting
 - `webhook_id`: null - specific webhook to use
 
+**Command Line Arguments**:
+- `--lang` - Override transcription language (e.g., `--lang=ru`, `--lang=es`)
+  - If not specified, defaults to "en" (English)
+  - Set to "null" for auto-detection
+  - Parsed at startup using `parseArgs()` function
+
 **Key Functions**:
-- `getVideoFiles()` - Scans video directory for supported formats (index.js:111)
-- `extractAudio()` - Uses fluent-ffmpeg to extract MP3 audio (index.js:134)
-- `getAudioMetadata()` - Gets duration and size using ffprobe (index.js:161)
-- `transcribeWithElevenLabs()` - Sends file to ElevenLabs API with config (index.js:191)
-- `showFileMenu()` - Interactive inquirer menu (index.js:274)
-- `transcribeAudioFile()` - Full transcription workflow with validation (index.js:307)
-- `processVideoFile()` - Complete video→audio→text pipeline (index.js:373)
-- `main()` - Entry point with initialization and loop (index.js:427)
+- `parseArgs()` - Parses command line arguments (index.js:28)
+- `getVideoFiles()` - Scans video directory for supported formats (index.js:136)
+- `extractAudio()` - Uses fluent-ffmpeg to extract MP3 audio (index.js:159)
+- `getAudioMetadata()` - Gets duration and size using ffprobe (index.js:186)
+- `transcribeWithElevenLabs()` - Sends file to ElevenLabs API with config (index.js:216)
+- `showFileMenu()` - Interactive inquirer menu (index.js:299)
+- `transcribeAudioFile()` - Full transcription workflow with validation (index.js:332)
+- `processVideoFile()` - Complete video→audio→text pipeline (index.js:398)
+- `main()` - Entry point with initialization and loop (index.js:457)
 
 **File Limits**:
 - Supported video formats: `.mp4`, `.mov` (index.js:103)
@@ -128,13 +139,23 @@ cat ./text/video.txt
 
 ## Changing Transcription Settings
 
-To customize transcription behavior, modify the `TRANSCRIPTION_CONFIG` object in index.js (lines 28-95):
+### Language Setting
 
-**Change language**:
+**Via command line (recommended)**:
+```bash
+npm start -- --lang=ru     # Russian
+npm start -- --lang=es     # Spanish
+npm start -- --lang=null   # Auto-detect
+```
+
+**Via configuration file**:
+Modify the `TRANSCRIPTION_CONFIG` object in index.js (lines 28-95):
 ```javascript
 language_code: "en",  // English
 language_code: null,  // Auto-detect
 ```
+
+**Note:** Command line arguments override the configuration file.
 
 **Disable speaker diarization**:
 ```javascript

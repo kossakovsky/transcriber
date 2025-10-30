@@ -11,13 +11,13 @@ An automated video transcription tool powered by ElevenLabs Scribe API. This Nod
 - 🔄 **Smart Processing** - Skips already processed files to save time and API costs
 - 💾 **Efficient Storage** - Uses MP3 compression for audio files
 - 📊 **Interactive CLI** - User-friendly menus with progress tracking
-- 🌍 **Multi-language Support** - Supports 99 languages (default: Russian)
+- 🌍 **Multi-language Support** - Supports 99 languages (default: English)
 - ⚡ **Large File Support** - Handles files up to 3GB and 10 hours duration
 - 🛡️ **Robust Error Handling** - Continues processing even if individual files fail
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v24 or higher)
 - ElevenLabs API key ([Get one here](https://elevenlabs.io/app/speech-to-text))
 - FFmpeg (bundled automatically via dependencies)
 
@@ -58,6 +58,11 @@ An automated video transcription tool powered by ElevenLabs Scribe API. This Nod
    npm start
    ```
 
+   Or specify a language:
+   ```bash
+   npm start -- --lang=ru
+   ```
+
 3. **Follow the interactive prompts** for each file:
    - ✅ **Continue** - Process the current file
    - ⏭️ **Skip** - Skip to the next file
@@ -83,22 +88,51 @@ transcriber/
 
 ## Configuration
 
-### Transcription Settings
+### Language Configuration
 
-All transcription parameters can be configured in `index.js` by modifying the `TRANSCRIPTION_CONFIG` object (lines 28-95):
+You can specify the transcription language in two ways:
 
-#### Language Settings
+#### 1. Command Line Argument (Recommended)
+
+Pass the `--lang` parameter when starting the application:
+
+```bash
+# English (default)
+npm start
+
+# Russian
+npm start -- --lang=ru
+
+# Spanish
+npm start -- --lang=es
+
+# Auto-detect language
+npm start -- --lang=null
+
+# Using node directly
+node index.js --lang=ru
+```
+
+#### 2. Modify Configuration File
+
+Edit the `TRANSCRIPTION_CONFIG` object in `index.js` (lines 28-95):
 
 ```javascript
-// Russian (default)
-language_code: "ru",
-
-// English
+// English (default)
 language_code: "en",
+
+// Russian
+language_code: "ru",
 
 // Auto-detect language
 language_code: null,
 ```
+
+**Note:** Command line arguments override the configuration file setting.
+
+### Other Transcription Settings
+
+All transcription parameters can be configured in `index.js` by modifying the `TRANSCRIPTION_CONFIG` object (lines 28-95):
 
 #### Speaker Diarization
 
@@ -213,8 +247,14 @@ The application uses an interactive CLI with the following features:
 ### Basic Usage
 
 ```bash
-# Process all videos in the video/ folder
+# Process all videos with default language (English)
 npm start
+
+# Process with Russian language
+npm start -- --lang=ru
+
+# Process with auto-detected language
+npm start -- --lang=null
 ```
 
 ### Batch Processing Multiple Files
@@ -420,4 +460,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Comprehensive error handling and validation
 - Support for MP4 and MOV video formats
 - Automatic audio extraction to MP3
-- Russian language default with 99 language support
+- English language default with 99 language support

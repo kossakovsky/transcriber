@@ -24,6 +24,24 @@ const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 const MAX_FILE_SIZE_GB = 3; // ElevenLabs limit: 3GB
 const MAX_DURATION_HOURS = 10; // ElevenLabs limit: 10 hours
 
+// Parse command line arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const params = {};
+
+  args.forEach(arg => {
+    if (arg.startsWith('--')) {
+      const [key, value] = arg.slice(2).split('=');
+      params[key] = value;
+    }
+  });
+
+  return params;
+}
+
+const CLI_ARGS = parseArgs();
+const LANGUAGE_CODE = CLI_ARGS.lang || "en"; // Default to English if not specified
+
 // ElevenLabs Scribe API Parameters
 // Все параметры с их дефолтными значениями для явного контроля
 const TRANSCRIPTION_CONFIG = {
@@ -33,8 +51,9 @@ const TRANSCRIPTION_CONFIG = {
 
   // Language code (ISO-639-1 or ISO-639-3)
   // If null/undefined, language is auto-detected
-  // Examples: "ru", "en", "es", "de", "fr", etc.
-  language_code: "ru",
+  // Examples: "en", "ru", "es", "de", "fr", etc.
+  // This value is overridden by CLI argument --lang if provided
+  language_code: LANGUAGE_CODE,
 
   // Speaker diarization - annotate who is speaking when
   // Default: false
@@ -426,6 +445,13 @@ async function processVideoFile(videoPath, index, totalFiles) {
  */
 async function main() {
   console.log(`\n🚀  Запуск скрипта обработки видео...\n`);
+
+  // Display language setting
+  if (CLI_ARGS.lang) {
+    console.log(`🌍  Язык транскрипции (из параметра): ${LANGUAGE_CODE}\n`);
+  } else {
+    console.log(`🌍  Язык транскрипции (по умолчанию): ${LANGUAGE_CODE}\n`);
+  }
 
   // Check API key
   if (!ELEVENLABS_API_KEY) {
