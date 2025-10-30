@@ -43,7 +43,7 @@ const CLI_ARGS = parseArgs();
 const LANGUAGE_CODE = CLI_ARGS.lang || "en"; // Default to English if not specified
 
 // ElevenLabs Scribe API Parameters
-// Все параметры с их дефолтными значениями для явного контроля
+// All parameters with their default values for explicit control
 const TRANSCRIPTION_CONFIG = {
   // REQUIRED: Model ID for transcription
   // Options: "scribe_v1" (stable), "scribe_v1_experimental" (newer features)
@@ -129,7 +129,7 @@ const VIDEO_EXTENSIONS = [".mp4", ".mov"];
  */
 function getVideoFiles() {
   if (!fs.existsSync(VIDEO_DIR)) {
-    console.error(`❌  Папка ${VIDEO_DIR} не существует.`);
+    console.error(`❌  Folder ${VIDEO_DIR} does not exist.`);
     return [];
   }
 
@@ -152,19 +152,19 @@ function getVideoFiles() {
  */
 function extractAudio(videoPath, outputPath) {
   return new Promise((resolve, reject) => {
-    console.log(`    🎬  Извлечение аудио из ${path.basename(videoPath)}...`);
+    console.log(`    🎬  Extracting audio from ${path.basename(videoPath)}...`);
     ffmpeg(videoPath)
       .output(outputPath)
       .audioCodec("libmp3lame") // MP3 codec
       .format("mp3")
       .on("end", () => {
-        console.log(`    ✅  Аудио извлечено: ${path.basename(outputPath)}`);
+        console.log(`    ✅  Audio extracted: ${path.basename(outputPath)}`);
         resolve();
       })
       .on("error", (err) => {
         reject(
           new Error(
-            `Ошибка при извлечении аудио из ${videoPath}: ${err.message}`
+            `Error extracting audio from ${videoPath}: ${err.message}`
           )
         );
       })
@@ -183,7 +183,7 @@ function getAudioMetadata(filePath) {
       if (err) {
         return reject(
           new Error(
-            `Ошибка при получении метаданных ${filePath}: ${err.message}`
+            `Error getting metadata for ${filePath}: ${err.message}`
           )
         );
       }
@@ -192,7 +192,7 @@ function getAudioMetadata(filePath) {
       if (duration === undefined || size === undefined) {
         return reject(
           new Error(
-            `Не удалось получить длительность или размер для ${filePath}`
+            `Failed to get duration or size for ${filePath}`
           )
         );
       }
@@ -209,7 +209,7 @@ function getAudioMetadata(filePath) {
  */
 async function transcribeWithElevenLabs(filePath, apiKey) {
   const filename = path.basename(filePath);
-  console.log(`    ☁️  Отправка файла ${filename} в ElevenLabs Scribe API...`);
+  console.log(`    ☁️  Sending file ${filename} to ElevenLabs Scribe API...`);
 
   const formData = new FormData();
   formData.append("file", fs.createReadStream(filePath));
@@ -264,17 +264,17 @@ async function transcribeWithElevenLabs(filePath, apiKey) {
         timeout: 1200000, // 20 minutes for large files
       }
     );
-    console.log(`    ✅  Файл ${filename} успешно транскрибирован.`);
+    console.log(`    ✅  File ${filename} successfully transcribed.`);
     return response.data.text;
   } catch (error) {
-    console.error(`    ❌  Ошибка при транскрибации файла ${filename}:`);
+    console.error(`    ❌  Error transcribing file ${filename}:`);
     if (error.response) {
-      console.error(`        - Статус API: ${error.response.status}`);
+      console.error(`        - API Status: ${error.response.status}`);
       console.error(
-        `        - Ответ API: ${JSON.stringify(error.response.data)}`
+        `        - API Response: ${JSON.stringify(error.response.data)}`
       );
     } else if (error.request) {
-      console.error("        - Ошибка сети или нет ответа от сервера ElevenLabs.");
+      console.error("        - Network error or no response from ElevenLabs server.");
     } else {
       console.error(`        - ${error.message}`);
     }
@@ -295,18 +295,18 @@ async function showFileMenu(fileName, currentIndex, totalFiles) {
     {
       type: "list",
       name: "action",
-      message: `📂  Файл ${currentIndex}/${totalFiles}: "${fileName}"`,
+      message: `📂  File ${currentIndex}/${totalFiles}: "${fileName}"`,
       choices: [
         {
-          name: "✅  Продолжить обработку",
+          name: "✅  Continue processing",
           value: "continue",
         },
         {
-          name: "⏭️  Пропустить этот файл",
+          name: "⏭️  Skip this file",
           value: "skip",
         },
         {
-          name: "🚪  Выход из программы",
+          name: "🚪  Exit program",
           value: "exit",
         },
       ],
@@ -326,15 +326,15 @@ async function showFileMenu(fileName, currentIndex, totalFiles) {
 async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
   const baseFilename = path.basename(filePath);
   console.log(
-    `[${index + 1}/${totalFiles}] 🎤  Транскрибация файла: ${baseFilename}`
+    `[${index + 1}/${totalFiles}] 🎤  Transcribing file: ${baseFilename}`
   );
 
   try {
     const { duration, size } = await getAudioMetadata(filePath);
     console.log(
-      `[${index + 1}/${totalFiles}] ℹ️  Размер: ${(size / 1024 / 1024).toFixed(
+      `[${index + 1}/${totalFiles}] ℹ️  Size: ${(size / 1024 / 1024).toFixed(
         2
-      )} MB, Длительность: ${Math.floor(duration / 60)}m ${Math.round(
+      )} MB, Duration: ${Math.floor(duration / 60)}m ${Math.round(
         duration % 60
       )}s`
     );
@@ -345,13 +345,13 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
 
     if (sizeGB > MAX_FILE_SIZE_GB) {
       throw new Error(
-        `Файл превышает лимит размера: ${sizeGB.toFixed(2)}GB > ${MAX_FILE_SIZE_GB}GB`
+        `File exceeds size limit: ${sizeGB.toFixed(2)}GB > ${MAX_FILE_SIZE_GB}GB`
       );
     }
 
     if (durationHours > MAX_DURATION_HOURS) {
       throw new Error(
-        `Файл превышает лимит длительности: ${durationHours.toFixed(2)}h > ${MAX_DURATION_HOURS}h`
+        `File exceeds duration limit: ${durationHours.toFixed(2)}h > ${MAX_DURATION_HOURS}h`
       );
     }
 
@@ -360,20 +360,20 @@ async function transcribeAudioFile(filePath, outputPath, index, totalFiles) {
     fs.writeFileSync(outputPath, transcript, "utf8");
     console.log(
       `[${index + 1
-      }/${totalFiles}] 💾  Транскрипция сохранена в: ${path.basename(
+      }/${totalFiles}] 💾  Transcription saved to: ${path.basename(
         outputPath
       )}`
     );
   } catch (error) {
     console.error(
       `[${index + 1
-      }/${totalFiles}] ❌  Ошибка при обработке файла ${baseFilename}:`
+      }/${totalFiles}] ❌  Error processing file ${baseFilename}:`
     );
     if (error.response) {
-      console.error(`       - Статус API: ${error.response.status}`);
-      console.error(`       - Ответ API: ${JSON.stringify(error.response.data)}`);
+      console.error(`       - API Status: ${error.response.status}`);
+      console.error(`       - API Response: ${JSON.stringify(error.response.data)}`);
     } else if (error.request) {
-      console.error("       - Ошибка сети или нет ответа от сервера ElevenLabs.");
+      console.error("       - Network error or no response from ElevenLabs server.");
     } else {
       console.error(`       - ${error.message}`);
       if (error.stack) {
@@ -394,7 +394,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
   const videoName = path.basename(videoPath, path.extname(videoPath));
 
   console.log(
-    `\n[${index + 1}/${totalFiles}] ▶️  Обработка видео: ${videoBasename}`
+    `\n[${index + 1}/${totalFiles}] ▶️  Processing video: ${videoBasename}`
   );
 
   // Define output paths
@@ -405,7 +405,7 @@ async function processVideoFile(videoPath, index, totalFiles) {
   if (fs.existsSync(textPath)) {
     console.log(
       `[${index + 1
-      }/${totalFiles}] ⏭️  Файл уже обработан, пропуск: ${videoBasename}\n`
+      }/${totalFiles}] ⏭️  File already processed, skipping: ${videoBasename}\n`
     );
     return;
   }
@@ -418,10 +418,10 @@ async function processVideoFile(videoPath, index, totalFiles) {
       const audioStats = fs.statSync(audioPath);
       const audioSizeMB = (audioStats.size / 1024 / 1024).toFixed(2);
       console.log(
-        `[${index + 1}/${totalFiles}] ✅  Аудио файл уже существует: ${path.basename(audioPath)} (${audioSizeMB} MB)`
+        `[${index + 1}/${totalFiles}] ✅  Audio file already exists: ${path.basename(audioPath)} (${audioSizeMB} MB)`
       );
       console.log(
-        `[${index + 1}/${totalFiles}] ⏩  Пропускаем шаг извлечения аудио`
+        `[${index + 1}/${totalFiles}] ⏩  Skipping audio extraction step`
       );
     }
 
@@ -429,12 +429,12 @@ async function processVideoFile(videoPath, index, totalFiles) {
     await transcribeAudioFile(audioPath, textPath, index, totalFiles);
 
     console.log(
-      `[${index + 1}/${totalFiles}] ✅  Видео ${videoBasename} полностью обработано.\n`
+      `[${index + 1}/${totalFiles}] ✅  Video ${videoBasename} fully processed.\n`
     );
   } catch (error) {
     console.error(
       `[${index + 1
-      }/${totalFiles}] ❌  Критическая ошибка при обработке видео ${videoBasename}:`
+      }/${totalFiles}] ❌  Critical error processing video ${videoBasename}:`
     );
     console.error(`   - ${error.message}\n`);
   }
@@ -444,19 +444,19 @@ async function processVideoFile(videoPath, index, totalFiles) {
  * Main function to process all videos.
  */
 async function main() {
-  console.log(`\n🚀  Запуск скрипта обработки видео...\n`);
+  console.log(`\n🚀  Starting video processing script...\n`);
 
   // Display language setting
   if (CLI_ARGS.lang) {
-    console.log(`🌍  Язык транскрипции (из параметра): ${LANGUAGE_CODE}\n`);
+    console.log(`🌍  Transcription language (from parameter): ${LANGUAGE_CODE}\n`);
   } else {
-    console.log(`🌍  Язык транскрипции (по умолчанию): ${LANGUAGE_CODE}\n`);
+    console.log(`🌍  Transcription language (default): ${LANGUAGE_CODE}\n`);
   }
 
   // Check API key
   if (!ELEVENLABS_API_KEY) {
     console.error(
-      "❌  ОШИБКА: API ключ ElevenLabs не найден. Убедитесь, что он задан в файле .env как ELEVENLABS_API_KEY.\n"
+      "❌  ERROR: ElevenLabs API key not found. Make sure it is set in the .env file as ELEVENLABS_API_KEY.\n"
     );
     return;
   }
@@ -465,7 +465,7 @@ async function main() {
   [VIDEO_DIR, AUDIO_DIR, TEXT_DIR].forEach((dir) => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      console.log(`📁  Создана папка: ${dir}`);
+      console.log(`📁  Folder created: ${dir}`);
     }
   });
 
@@ -474,14 +474,14 @@ async function main() {
 
   if (videoFiles.length === 0) {
     console.log(
-      `🟡  Не найдено видео файлов в папке ${VIDEO_DIR}. Поддерживаемые форматы: ${VIDEO_EXTENSIONS.join(
+      `🟡  No video files found in folder ${VIDEO_DIR}. Supported formats: ${VIDEO_EXTENSIONS.join(
         ", "
       )}\n`
     );
     return;
   }
 
-  console.log(`📊  Обнаружено видео файлов: ${videoFiles.length}\n`);
+  console.log(`📊  Video files found: ${videoFiles.length}\n`);
 
   // Process each video file
   const totalFiles = videoFiles.length;
@@ -496,14 +496,14 @@ async function main() {
     const userChoice = await showFileMenu(videoBasename, i + 1, totalFiles);
 
     if (userChoice === "exit") {
-      console.log(`\n🚪  Выход из программы по запросу пользователя.\n`);
-      console.log(`📊  Обработано файлов: ${processedCount} из ${totalFiles}`);
-      console.log(`⏭️  Пропущено файлов: ${skippedCount}\n`);
+      console.log(`\n🚪  Exiting program by user request.\n`);
+      console.log(`📊  Files processed: ${processedCount} of ${totalFiles}`);
+      console.log(`⏭️  Files skipped: ${skippedCount}\n`);
       return;
     }
 
     if (userChoice === "skip") {
-      console.log(`\n⏭️  Пропускаем файл: ${videoBasename}`);
+      console.log(`\n⏭️  Skipping file: ${videoBasename}`);
       console.log(`${"─".repeat(60)}\n`);
       skippedCount++;
       continue;
@@ -515,16 +515,16 @@ async function main() {
     console.log(`${"─".repeat(60)}\n`);
   }
 
-  console.log(`\n🏁  Все файлы обработаны!\n`);
-  console.log(`📊  Обработано файлов: ${processedCount} из ${totalFiles}`);
+  console.log(`\n🏁  All files processed!\n`);
+  console.log(`📊  Files processed: ${processedCount} of ${totalFiles}`);
   if (skippedCount > 0) {
-    console.log(`⏭️  Пропущено файлов: ${skippedCount}`);
+    console.log(`⏭️  Files skipped: ${skippedCount}`);
   }
   console.log("");
 }
 
 // Run main function
 main().catch((err) => {
-  console.error("\n🚫  Произошла критическая ошибка в главной функции:", err);
+  console.error("\n🚫  A critical error occurred in the main function:", err);
 });
 
